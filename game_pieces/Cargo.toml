@@ -1,0 +1,10 @@
+[package]
+name = "game_pieces"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+
+[features]
+deep_sea = []
