@@ -1,6 +1,6 @@
 use crate::player::PlayerID;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum UnitType {
     // Base Game types
     Army,
