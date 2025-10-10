@@ -60,9 +60,10 @@ pub struct Province {
     // Owner of the province. Note that neutral/unowned is a value of `0`.
     owned_by: PlayerID,
 
-    // 0 if not a Supply Center, 1 if an SC. u8 to allow for potential for high-value SCs (worth 2+ builds).
-    // Note that this should always be 0 if it is a coast to prevent double counting, since the "main" province will provide the SC
-    sc_value: u8,
+    // None if not a Supply Center, Some(1) if an SC, and Some(0) if it is the coast of an SC.
+    // The distinction between None and Some(0) is that it may be possible to build in a Some(0),
+    // but it still doesn't count towards the player's SC count.
+    sc_value: Option<u8>,
 
     // List of players that can build in this province. Is at most one in standard diplomacy, up to all countries in "build anywhere" variants.
     core_of: Vec<PlayerID>,

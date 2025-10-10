@@ -1,3 +1,5 @@
+use petgraph::{Graph, Undirected, graph::UnGraph};
+
 use crate::{
     province::{Province, ProvinceID},
     unit::UnitType,
@@ -41,7 +43,14 @@ impl Connection {
 
 pub struct Map {
     provinces: Vec<Province>,
-    connections: Vec<Connection>,
+    adjacency_graph: UnGraph<ProvinceID, Vec<UnitType>>,
 }
 
-impl Map {}
+impl Map {
+    pub fn new() -> Self {
+        Self {
+            provinces: Vec::<Province>::new(),
+            adjacency_graph: Graph::<ProvinceID, Vec<UnitType>, Undirected>::new_undirected(),
+        }
+    }
+}
