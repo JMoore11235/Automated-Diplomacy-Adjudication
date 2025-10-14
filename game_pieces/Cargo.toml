@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 petgraph = "0.8.3"
-
+graph-cycles = "0.3.0"
 
 [features]
 deep_sea = []
