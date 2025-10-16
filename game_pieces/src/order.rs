@@ -6,11 +6,12 @@ use petgraph::{
     graph::NodeIndex,
     visit::EdgeRef,
 };
+use std::collections::HashMap;
 
 use crate::province::ProvinceID;
 
-type OrderGraph<'a> = Graph<&'a Order, (), Directed>;
-type NodeList<'a> = Vec<(&'a Order, NodeIndex)>;
+type OrderGraph = Graph<(), (), Directed>;
+type IndexMap<'a> = HashMap<NodeIndex, Order>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum OrderType {
@@ -34,6 +35,7 @@ pub enum OrderType {
 
 use OrderType::*;
 
+#[derive(Clone, Copy)]
 pub struct Order {
     // The order the the player gave for this province
     original_order_type: OrderType,
@@ -88,13 +90,13 @@ impl Order {
     }
 }
 
-pub fn create_order_dependency_graph<'a>(orders: Vec<&'a Order>) -> (OrderGraph<'a>, NodeList<'a>) {
+pub fn create_order_dependency_graph<'a>(orders: &Vec<Order>) -> (OrderGraph, IndexMap<'a>) {
     let mut ret_graph = OrderGraph::new();
+    let mut nodes: IndexMap = HashMap::new();
 
-    let mut nodes: NodeList = vec![];
-
+    // Create a node representing each order. Keep track of this correlation by using a hashmap.
     for order in orders {
-        nodes.push((order, ret_graph.add_node(order)));
+        nodes.insert(ret_graph.add_node(()), *order);
     }
 
     // All dependencies between orders are as follows:
@@ -104,8 +106,8 @@ pub fn create_order_dependency_graph<'a>(orders: Vec<&'a Order>) -> (OrderGraph<
     // 4. A unit moving into a location is dependant on any unit also moving into that location. (Causes a cycle)
     // 5. A unit moving into a location is dependant on any unit moving from its destination to the original units origin (Causes a cycle)
     // 6. A unit moving into a location is dependant on any unit that is convoying it. This can lead to a convoy paradox.
-    for (current_order, current_order_idx) in &nodes {
-        for (check_order, check_order_idx) in &nodes {
+    for (current_order_idx, current_order) in &nodes {
+        for (check_order_idx, check_order) in &nodes {
             // Helper function to reduce duplicate edge adding code.
             let mut add_edge = || {
                 ret_graph.add_edge(*current_order_idx, *check_order_idx, ());
@@ -151,31 +153,45 @@ pub fn create_order_dependency_graph<'a>(orders: Vec<&'a Order>) -> (OrderGraph<
     (ret_graph, nodes)
 }
 
-// Takes in a depend
-pub fn resolve_all_non_dependant_edges<'a>(order_graph: &'a mut OrderGraph, nodes: &'a NodeList) {
+pub fn resolve_all_non_dependant_edges<'a>(order_graph: &mut OrderGraph, nodes: &mut IndexMap) {
     // Whether or not any orders have been resolved this iteration. Starts as true so that we enter the while loop the first time.
     let mut any_resolved = true;
 
     while any_resolved {
         any_resolved = false;
 
-        for (order, index) in nodes {
-            if order_graph.edges_directed(*index, Outgoing).count() == 0 {
-                // This means that we have an order with no dependencies; it is ready to be resolved!
-                match order.order_type {
+        for index in order_graph.node_indices() {
+            if (!nodes.get(&index).unwrap().resolved)
+                && order_graph.edges_directed(index, Outgoing).count() == 0
+            {
+                // This means that we have an unresolved order with no dependencies; it is ready to be resolved!
+                let current_order = nodes.get(&index).unwrap();
+
+                match current_order.order_type {
                     Support => {
                         // Find the unit that we are supporting, and increase its strength by one, then remove its dependency on this order.
-                        let mut incoming_edges = order_graph.edges_directed(*index, Incoming);
+                        let mut incoming_edges = order_graph.edges_directed(index, Incoming);
 
-                        // There should only ever be exactly one edge dependant on this one. TODO: Make sure this is the case.
-                        let dependent_node_index = incoming_edges.next().unwrap().source();
+                        // There should only ever be exactly one edge dependant on this one.
+                        let incoming_edge = incoming_edges.next().unwrap();
+                        assert!(incoming_edges.next().is_none());
 
-                        // order_graph[dependent_node_index].increase_strength();
+                        // Grab the supported unit, and increase its strength by 1.
+                        nodes
+                            .get_mut(&incoming_edge.source())
+                            .unwrap()
+                            .increase_strength();
+
+                        // Now remove that dependency from the graph
+                        order_graph.remove_edge(incoming_edge.id());
                     }
                     _ => {
                         unimplemented!();
                     }
                 }
+
+                // Update any_resolved so that we go through another time (as this order being resolved may leave other order with no dependencies)
+                any_resolved = true;
             }
         }
     }
